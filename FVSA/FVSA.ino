@@ -2,12 +2,23 @@
 /*Alerts the driver when the vehicle in front has started to move*/
 /*2023년도 ICT이노베이션스퀘어 확산 사업 - 아두이노 기반 모빌리티 IoT 과정*/
 //  Changelog:
+//  23.10.30 - create varibles for detecting car
 //  23.10.29 - create project
 //           - ultrasonic sensor setting
 
 #define TRIG 5
 #define ECHO 6
 #define BUZZER 11
+
+enum carState {
+  STOP = 0,
+  DEPART
+};
+
+typedef struct {
+  uint8_t frontCarState;
+  uint8_t myCarState;
+}CarState;
 
 void setup() {
   // put your setup code here, to run once:
@@ -34,6 +45,6 @@ void loop() {
 
   Serial.print(distance);   // 측정된 거리 값를 시리얼 모니터에 출력
   Serial.println("cm");
-
+  
   delay(1000);
 }
