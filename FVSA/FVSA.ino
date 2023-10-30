@@ -7,7 +7,7 @@
 
 #define TRIG 5
 #define ECHO 6
-#define BUZZER 13
+#define BUZZER 11
 
 void setup() {
   // put your setup code here, to run once:
