@@ -3,9 +3,11 @@
 /*2023년도 ICT이노베이션스퀘어 확산 사업 - 아두이노 기반 모빌리티 IoT 과정*/
 //  Changelog:
 //  23.11.05 - front car detecting logic
+//             distnace filtering logic
+//             divide function 
 //  23.10.30 - create varibles for detecting car
 //  23.10.29 - create project
-//           - ultrasonic sensor setting
+//             ultrasonic sensor setting
 
 #define TRIG 5
 #define ECHO 6
@@ -25,6 +27,9 @@ typedef struct {
   uint8_t preStopStart;
 }CarState;
 
+CarState myCarState;
+CarState frontCarState;
+
 unsigned long curTime = 0;
 
 void setup() {
@@ -36,20 +41,33 @@ void setup() {
   
   pinMode(BUZZER, OUTPUT);
 
-  curTime = millis();
+  memset(&myCarState, 0x00, sizeof(myCarState));
+  memset(&frontCarState, 0x00, sizeof(frontCarState));
+  
+  curTime = millis();  
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
+
+  float distance = UltraSonic();
+  float* pDistance = &distance;
+ 
+#ifdef FILTER
+  DistanceFilter(pDistance);
+#endif
+
+  Serial.print(distance);   // 측정된 거리 값를 시리얼 모니터에 출력
+  Serial.println("cm");
   
-  CarState myCarState;
-  CarState frontCarState;
+  DetectCar(pDistance);
 
-  memset(&myCarState, 0x00, sizeof(myCarState));
-  memset(&frontCarState, 0x00, sizeof(frontCarState));
+  delay(ULTRA_DELAY);
+}
 
-
-  static uint8_t alert = 0;
+float UltraSonic()
+{
+  float ret = 0;
   
   digitalWrite(TRIG, LOW);
   delayMicroseconds(2);
@@ -59,37 +77,18 @@ void loop() {
 
   unsigned long duration = pulseIn(ECHO, HIGH); // ECHO 핀이 HIGH 상태가 될 때까지 시간 측정
 
-  static float distance = 0;
-  if((duration >= 117.6471)&&(duration <= 23529.41176))
-    distance = ((float)(340*duration) / 10000) / 2; // 초음파는 1초당 340m를 이동
-                                                        // 따라서, 초음파의 이동 거리 = duration(왕복에 걸린시간)*340 / 1000 / 2
-  static float preDistance = 0;
-  
-  if(preDistance == 0)
-  {
-    preDistance = distance;
-    Serial.println("preDistance init");
-  }
+  if((((float)(340*duration) / 10000) / 2 >= 2)&&(((float)(340*duration) / 10000) / 2 <=400))
+    ret = ((float)(340*duration) / 10000) / 2;      // 초음파는 1초당 340m를 이동
+                                                    // 따라서, 초음파의 이동 거리 = duration(왕복에 걸린시간)*340 / 1000 / 2
+  return ret;
+}
 
-  if(preDistance != 0)
-  {
-    if ((distance>(preDistance*10)) || (distance < (preDistance/15))) // 초음파 센서 측정값 튀는걸 필터링
-      {
-        if((distance>(preDistance*5)))
-          Serial.println("filtering *");
-        else 
-          Serial.println("filtering /");
-       distance = preDistance;
-      }
-  }
-
-  Serial.print(distance);   // 측정된 거리 값를 시리얼 모니터에 출력
-  Serial.println("cm");
-
+void DetectCar(float *pd)
+{
   switch(frontCarState.stopStart)
   {
     case INVALID :
-    if(distance <= 30)
+    if((*pd <= 30))
     {
       frontCarState.stopStart = DETECTED;
       Serial.println("front car detected");
@@ -97,35 +96,55 @@ void loop() {
     break;
     
     case DETECTED : 
-    if(millis() > curTime + 3000)
+    if(millis() > curTime + 5000)
     {
-      if(distance <= 30)
+      if(*pd <= 30)
       {
         frontCarState.stopStart = STOP;
         Serial.println("front car stopped");
         curTime = millis();
       }
+      else
+        frontCarState.stopStart = INVALID;
     }
     break;
   
     case STOP :
     if(millis() > curTime + 3000)
     {
-      if(distance > 30)
+      if(*pd > 30)
       {
         frontCarState.stopStart = DEPART;
         Serial.println("front car departed");
+        digitalWrite(11, HIGH);
         curTime = millis();
       }
     }
     break;
     
     case DEPART : 
-     //digitalWrite(13, HIGH);
-    Serial.println("alerted");
+      frontCarState.stopStart = INVALID;
+      Serial.println("front car status init");
+      digitalWrite(11, LOW);
     break;
   }
+}
 
-  delay(ULTRA_DELAY);
-  preDistance  = distance;
+void DistanceFilter(float *pd)
+{
+  static float predistance = 0;
+
+  if(predistance != 0)
+  {
+    if ((*pd>(preDistance*10)) || (*pd < (preDistance/15))) // 초음파 센서 측정값 튀는걸 필터링
+      {
+        if((*pd>(preDistance*10)))
+          Serial.println("filtering *");
+        else 
+          Serial.println("filtering /");
+        *pd = predistance;
+      }
+  }
+  else
+  predistance = *pd;
 }
