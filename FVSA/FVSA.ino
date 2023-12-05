@@ -2,6 +2,7 @@
 /*Alerts the driver when the vehicle in front has started to move*/
 /*2023년도 ICT이노베이션스퀘어 확산 사업 - 아두이노 기반 모빌리티 IoT 과정*/
 //  Changelog:
+//  23.12.05 - modify variables to fit camel notation (predistance -> preDistance)
 //  23.11.05 - front car detecting logic
 //             distnace filtering logic
 //             divide function 
@@ -35,7 +36,7 @@ unsigned long curTime = 0;
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);  // 초음파센서의 동작 상태를 확인하기 위해 시리얼 통신 설정(전송속도 9600bps)
-  
+
   pinMode(TRIG, OUTPUT);  //초음파 송신부를 출력 설정
   pinMode(ECHO, INPUT);   //초음파 수신부를 입력 설정
   
@@ -52,7 +53,7 @@ void loop() {
 
   float distance = UltraSonic();
   float* pDistance = &distance;
- 
+
 #ifdef FILTER
   DistanceFilter(pDistance);
 #endif
@@ -132,9 +133,9 @@ void DetectCar(float *pd)
 
 void DistanceFilter(float *pd)
 {
-  static float predistance = 0;
+  static float preDistance = 0;
 
-  if(predistance != 0)
+  if(preDistance != 0)
   {
     if ((*pd>(preDistance*10)) || (*pd < (preDistance/15))) // 초음파 센서 측정값 튀는걸 필터링
       {
@@ -142,9 +143,9 @@ void DistanceFilter(float *pd)
           Serial.println("filtering *");
         else 
           Serial.println("filtering /");
-        *pd = predistance;
+        *pd = preDistance;
       }
   }
   else
-  predistance = *pd;
+  preDistance = *pd;
 }
