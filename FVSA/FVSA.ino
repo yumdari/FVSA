@@ -3,6 +3,7 @@
 /*2023년도 ICT이노베이션스퀘어 확산 사업 - 아두이노 기반 모빌리티 IoT 과정*/
 //  Changelog:
 //  23.12.05 - modify variables to fit camel notation (predistance -> preDistance)
+//           - add LCD function
 //  23.11.05 - front car detecting logic
 //             distnace filtering logic
 //             divide function 
@@ -10,11 +11,16 @@
 //  23.10.29 - create project
 //             ultrasonic sensor setting
 
+#include <Wire.h>               // I2C 라이브러리
+#include <LiquidCrystal_I2C.h>  // I2C를 사용한 LCD 라이브러리
+
 #define TRIG 5
 #define ECHO 6
 #define ULTRA_DELAY 1000
 
 #define BUZZER 11
+
+LiquidCrystal_I2C lcd(0x27, 16, 2); // LCD 객체 선언
 
 enum carState {
   INVALID = 0,
@@ -37,6 +43,8 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);  // 초음파센서의 동작 상태를 확인하기 위해 시리얼 통신 설정(전송속도 9600bps)
 
+  lcd.begin();  //  LCD 사용
+  
   pinMode(TRIG, OUTPUT);  //초음파 송신부를 출력 설정
   pinMode(ECHO, INPUT);   //초음파 수신부를 입력 설정
   
@@ -53,7 +61,7 @@ void loop() {
 
   float distance = UltraSonic();
   float* pDistance = &distance;
-
+   
 #ifdef FILTER
   DistanceFilter(pDistance);
 #endif
@@ -61,9 +69,27 @@ void loop() {
   Serial.print(distance);   // 측정된 거리 값를 시리얼 모니터에 출력
   Serial.println("cm");
   
+  Lcd(distance);
+  
   DetectCar(pDistance);
 
   delay(ULTRA_DELAY);
+}
+
+void Lcd(float dist)
+{
+  lcd.clear();
+  lcd.setCursor(0, 0);    // 커서를 0, 0에 위치 (열, 행)
+  lcd.print("distance : ");     // 0, 0에 distance를 출력
+
+  lcd.setCursor(11, 0);    // 커서를 0, 0에 위치 (열, 행)
+  
+  if(dist > 0)
+  {
+      lcd.print(dist);
+  }
+  else
+  lcd.print("error"); //  out of lange
 }
 
 float UltraSonic()
@@ -78,7 +104,7 @@ float UltraSonic()
 
   unsigned long duration = pulseIn(ECHO, HIGH); // ECHO 핀이 HIGH 상태가 될 때까지 시간 측정
 
-  if((((float)(340*duration) / 10000) / 2 >= 2)&&(((float)(340*duration) / 10000) / 2 <=400))
+  if((((float)(340*duration) / 10000) / 2 >= 2)&&(((float)(340*duration) / 10000) / 2 <= 400))
     ret = ((float)(340*duration) / 10000) / 2;      // 초음파는 1초당 340m를 이동
                                                     // 따라서, 초음파의 이동 거리 = duration(왕복에 걸린시간)*340 / 1000 / 2
   return ret;
