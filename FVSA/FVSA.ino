@@ -2,6 +2,7 @@
 /*Alerts the driver when the vehicle in front has started to move*/
 /*2023년도 ICT이노베이션스퀘어 확산 사업 - 아두이노 기반 모빌리티 IoT 과정*/
 //  Changelog:
+//  23.12.06 - add LED Indication
 //  23.12.05 - modify variables to fit camel notation (predistance -> preDistance)
 //           - add LCD function
 //  23.11.05 - front car detecting logic
@@ -19,6 +20,10 @@
 #define ULTRA_DELAY 1000
 
 #define BUZZER 11
+
+#define RED   2
+#define GREEN 3
+#define BLUE  4
 
 LiquidCrystal_I2C lcd(0x27, 16, 2); // LCD 객체 선언
 
@@ -50,9 +55,13 @@ void setup() {
   
   pinMode(BUZZER, OUTPUT);
 
+  pinMode(RED, OUTPUT);
+  pinMode(GREEN, OUTPUT);
+  pinMode(BLUE, OUTPUT);
+
   memset(&myCarState, 0x00, sizeof(myCarState));
   memset(&frontCarState, 0x00, sizeof(frontCarState));
-  
+
   curTime = millis();  
 }
 
@@ -74,6 +83,18 @@ void loop() {
   DetectCar(pDistance);
 
   delay(ULTRA_DELAY);
+}
+
+void Led(int color)
+{
+  digitalWrite(RED, LOW);
+  digitalWrite(GREEN, LOW);
+  digitalWrite(BLUE, LOW);
+
+  if(frontCarState.stopStart != INVALID)
+  {
+    digitalWrite(color, HIGH);
+  }
 }
 
 void Lcd(float dist)
@@ -119,6 +140,7 @@ void DetectCar(float *pd)
     {
       frontCarState.stopStart = DETECTED;
       Serial.println("front car detected");
+      Led(GREEN);
     }
     break;
     
@@ -130,6 +152,7 @@ void DetectCar(float *pd)
         frontCarState.stopStart = STOP;
         Serial.println("front car stopped");
         curTime = millis();
+        Led(RED);
       }
       else
         frontCarState.stopStart = INVALID;
@@ -145,14 +168,15 @@ void DetectCar(float *pd)
         Serial.println("front car departed");
         digitalWrite(11, HIGH);
         curTime = millis();
+        Led(BLUE);
       }
     }
-    break;
-    
+    break;    
     case DEPART : 
       frontCarState.stopStart = INVALID;
       Serial.println("front car status init");
       digitalWrite(11, LOW);
+      Led(BLUE);
     break;
   }
 }
