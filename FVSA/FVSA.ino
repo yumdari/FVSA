@@ -3,6 +3,7 @@
 /*2023년도 ICT이노베이션스퀘어 확산 사업 - 아두이노 기반 모빌리티 IoT 과정*/
 //  Changelog:
 //  23.12.06 - add LED Indication
+//           - modify detect car logic
 //  23.12.05 - modify variables to fit camel notation (predistance -> preDistance)
 //           - add LCD function
 //  23.11.05 - front car detecting logic
@@ -25,6 +26,8 @@
 #define GREEN 3
 #define BLUE  4
 
+//#define FILTER
+
 LiquidCrystal_I2C lcd(0x27, 16, 2); // LCD 객체 선언
 
 enum carState {
@@ -42,7 +45,7 @@ typedef struct {
 CarState myCarState;
 CarState frontCarState;
 
-unsigned long curTime = 0;
+unsigned long curTime;
 
 void setup() {
   // put your setup code here, to run once:
@@ -62,12 +65,12 @@ void setup() {
   memset(&myCarState, 0x00, sizeof(myCarState));
   memset(&frontCarState, 0x00, sizeof(frontCarState));
 
-  curTime = millis();  
+  curTime = millis();
+  Serial.print("system init");
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-
   float distance = UltraSonic();
   float* pDistance = &distance;
    
@@ -100,22 +103,22 @@ void Led(int color)
 void Lcd(float dist)
 {
   lcd.clear();
-  lcd.setCursor(0, 0);    // 커서를 0, 0에 위치 (열, 행)
-  lcd.print("distance : ");     // 0, 0에 distance를 출력
+  lcd.setCursor(0, 0);        // 커서를 0, 0에 위치 (열, 행)
+  lcd.print("distance : ");   // 0, 0에 distance를 출력
 
-  lcd.setCursor(11, 0);    // 커서를 0, 0에 위치 (열, 행)
+  lcd.setCursor(11, 0);       // 커서를 0, 0에 위치 (열, 행)
   
   if(dist > 0)
   {
       lcd.print(dist);
   }
   else
-  lcd.print("error"); //  out of lange
+  lcd.print("error");         //  out of lange
 }
 
 float UltraSonic()
 {
-  float ret = 0;
+  static float ret = 0;
   
   digitalWrite(TRIG, LOW);
   delayMicroseconds(2);
@@ -136,7 +139,7 @@ void DetectCar(float *pd)
   switch(frontCarState.stopStart)
   {
     case INVALID :
-    if((*pd <= 30))
+    if((*pd <= 30)&&(*pd > 0))
     {
       frontCarState.stopStart = DETECTED;
       Serial.println("front car detected");
@@ -147,7 +150,7 @@ void DetectCar(float *pd)
     case DETECTED : 
     if(millis() > curTime + 5000)
     {
-      if(*pd <= 30)
+      if((*pd <= 30)&&(*pd > 0))
       {
         frontCarState.stopStart = STOP;
         Serial.println("front car stopped");
@@ -155,14 +158,18 @@ void DetectCar(float *pd)
         Led(RED);
       }
       else
+      {
         frontCarState.stopStart = INVALID;
+        Serial.println("front car status init");
+        Led(INVALID);
+      }
     }
     break;
   
     case STOP :
     if(millis() > curTime + 3000)
     {
-      if(*pd > 30)
+      if((*pd > 30)&&(*pd > 0))
       {
         frontCarState.stopStart = DEPART;
         Serial.println("front car departed");
@@ -170,13 +177,23 @@ void DetectCar(float *pd)
         curTime = millis();
         Led(BLUE);
       }
+      else if((*pd <= 30)&&(*pd > 0))
+      {
+        /*전방 차량 멈춰 있음*/
+      }
+      else
+      {
+        frontCarState.stopStart = INVALID;
+        Serial.println("front car status init");
+        Led(INVALID);
+      }
     }
     break;    
     case DEPART : 
       frontCarState.stopStart = INVALID;
       Serial.println("front car status init");
       digitalWrite(11, LOW);
-      Led(BLUE);
+      Led(INVALID);
     break;
   }
 }
