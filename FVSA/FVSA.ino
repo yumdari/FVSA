@@ -3,6 +3,7 @@
 /*2023년도 ICT이노베이션스퀘어 확산 사업 - 아두이노 기반 모빌리티 IoT 과정*/
 //  Changelog:
 //  23.12.07 - add UART Define (Ultrasonic, Detect_car)
+//           - add Joystic Function
 //  23.12.06 - add LED Indication
 //           - modify detect car logic
 //  23.12.05 - modify variables to fit camel notation (predistance -> preDistance)
@@ -22,6 +23,10 @@
 #define ULTRA_DELAY 1000
 
 #define BUZZER  11
+
+#define JOY_SW  7
+#define JOY_X   A1
+#define JOY_Y   A0
 
 #define RED   2
 #define GREEN 3
@@ -66,6 +71,8 @@ void setup() {
   pinMode(GREEN, OUTPUT);
   pinMode(BLUE, OUTPUT);
 
+  pinMode(JOY_SW, INPUT_PULLUP);  // 조이스틱 버튼에 내부 pull up 적용
+
   memset(&myCarState, 0x00, sizeof(myCarState));
   memset(&frontCarState, 0x00, sizeof(frontCarState));
 
@@ -86,8 +93,19 @@ void loop() {
   Lcd(distance);
   
   DetectCar(distance);
-
+  
+  Joystic();
+  
   delay(ULTRA_DELAY);
+}
+
+void Joystic()
+{
+  Serial.print("X : ");
+  Serial.println(analogRead(JOY_X));
+   
+  Serial.print("Y : ");
+  Serial.println(analogRead(JOY_Y));
 }
 
 void Led(int color)
