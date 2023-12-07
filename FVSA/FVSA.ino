@@ -40,6 +40,7 @@ enum carState {
 typedef struct {
   uint8_t stopStart;
   uint8_t preStopStart;
+  float lastDistance;
 }CarState;
 
 CarState myCarState;
@@ -154,6 +155,7 @@ void DetectCar(float *pd)
       {
         frontCarState.stopStart = STOP;
         Serial.println("front car stopped");
+        frontCarState.lastDistance = *pd;
         curTime = millis();
         Led(RED);
       }
@@ -173,7 +175,7 @@ void DetectCar(float *pd)
       {
         frontCarState.stopStart = DEPART;
         Serial.println("front car departed");
-        digitalWrite(11, HIGH);
+        digitalWrite(BUZZER, HIGH);
         curTime = millis();
         Led(BLUE);
       }
@@ -192,7 +194,7 @@ void DetectCar(float *pd)
     case DEPART : 
       frontCarState.stopStart = INVALID;
       Serial.println("front car status init");
-      digitalWrite(11, LOW);
+      digitalWrite(BUZZER, LOW);
       Led(INVALID);
     break;
   }
@@ -204,9 +206,9 @@ void DistanceFilter(float *pd)
 
   if(preDistance != 0)
   {
-    if ((*pd>(preDistance*10)) || (*pd < (preDistance/15))) // 초음파 센서 측정값 튀는걸 필터링
+    if ((*pd > (preDistance * 10)) || (*pd < (preDistance / 15))) // 초음파 센서 측정값 튀는걸 필터링
       {
-        if((*pd>(preDistance*10)))
+        if((*pd > (preDistance*10)))
           Serial.println("filtering *");
         else 
           Serial.println("filtering /");
