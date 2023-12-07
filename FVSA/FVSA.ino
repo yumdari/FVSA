@@ -2,6 +2,7 @@
 /*Alerts the driver when the vehicle in front has started to move*/
 /*2023년도 ICT이노베이션스퀘어 확산 사업 - 아두이노 기반 모빌리티 IoT 과정*/
 //  Changelog:
+//  23.12.07 - add UART Define (Ultrasonic, Detect_car)
 //  23.12.06 - add LED Indication
 //           - modify detect car logic
 //  23.12.05 - modify variables to fit camel notation (predistance -> preDistance)
@@ -20,12 +21,14 @@
 #define ECHO 6
 #define ULTRA_DELAY 1000
 
-#define BUZZER 11
+#define BUZZER  11
 
 #define RED   2
 #define GREEN 3
 #define BLUE  4
 
+//#define UART_ULTRA
+//#define UART_DETECT_CAR
 //#define FILTER
 
 LiquidCrystal_I2C lcd(0x27, 16, 2); // LCD 객체 선언
@@ -72,19 +75,17 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
+  
   float distance = UltraSonic();
   float* pDistance = &distance;
-   
+  
 #ifdef FILTER
   DistanceFilter(pDistance);
 #endif
 
-  Serial.print(distance);   // 측정된 거리 값를 시리얼 모니터에 출력
-  Serial.println("cm");
-  
   Lcd(distance);
   
-  DetectCar(pDistance);
+  DetectCar(distance);
 
   delay(ULTRA_DELAY);
 }
@@ -130,20 +131,28 @@ float UltraSonic()
   unsigned long duration = pulseIn(ECHO, HIGH); // ECHO 핀이 HIGH 상태가 될 때까지 시간 측정
 
   if((((float)(340*duration) / 10000) / 2 >= 2)&&(((float)(340*duration) / 10000) / 2 <= 400))
+  {
     ret = ((float)(340*duration) / 10000) / 2;      // 초음파는 1초당 340m를 이동
                                                     // 따라서, 초음파의 이동 거리 = duration(왕복에 걸린시간)*340 / 1000 / 2
+  }
+#ifdef UART_ULTRA
+  Serial.print(ret);   // 측정된 거리 값를 시리얼 모니터에 출력
+  Serial.println("cm");
+#endif
   return ret;
 }
 
-void DetectCar(float *pd)
+void DetectCar(float distance)
 {
   switch(frontCarState.stopStart)
   {
     case INVALID :
-    if((*pd <= 30)&&(*pd > 0))
+    if((distance <= 30)&&(distance > 0))
     {
       frontCarState.stopStart = DETECTED;
+#ifdef UART_DETECT_CAR
       Serial.println("front car detected");
+#endif
       Led(GREEN);
     }
     break;
@@ -151,18 +160,22 @@ void DetectCar(float *pd)
     case DETECTED : 
     if(millis() > curTime + 5000)
     {
-      if((*pd <= 30)&&(*pd > 0))
+      if((distance <= 30)&&(distance > 0))
       {
         frontCarState.stopStart = STOP;
+#ifdef UART_DETECT_CAR
         Serial.println("front car stopped");
-        frontCarState.lastDistance = *pd;
+#endif
+        frontCarState.lastDistance = distance;
         curTime = millis();
         Led(RED);
       }
       else
       {
         frontCarState.stopStart = INVALID;
+#ifdef UART_DETECT_CAR
         Serial.println("front car status init");
+#endif
         Led(INVALID);
       }
     }
@@ -171,32 +184,38 @@ void DetectCar(float *pd)
     case STOP :
     if(millis() > curTime + 3000)
     {
-      if((*pd > 30)&&(*pd > 0))
+      if((distance > 30)&&(distance > 0))
       {
         frontCarState.stopStart = DEPART;
+#ifdef UART_DETECT_CAR
         Serial.println("front car departed");
+#endif
         digitalWrite(BUZZER, HIGH);
         curTime = millis();
         Led(BLUE);
       }
-      else if((*pd <= 30)&&(*pd > 0))
+      else if((distance <= 30)&&(distance > 0))
       {
         /*전방 차량 멈춰 있음*/
       }
       else
       {
         frontCarState.stopStart = INVALID;
+#ifdef UART_DETECT_CAR
         Serial.println("front car status init");
+#endif
         Led(INVALID);
       }
     }
     break;    
     case DEPART : 
       frontCarState.stopStart = INVALID;
+#ifdef UART_DETECT_CAR
       Serial.println("front car status init");
+#endif
       digitalWrite(BUZZER, LOW);
       Led(INVALID);
-    break;
+      break;
   }
 }
 
@@ -209,9 +228,17 @@ void DistanceFilter(float *pd)
     if ((*pd > (preDistance * 10)) || (*pd < (preDistance / 15))) // 초음파 센서 측정값 튀는걸 필터링
       {
         if((*pd > (preDistance*10)))
+        {
+#ifdef UART_DETECT_CAR
           Serial.println("filtering *");
+#endif
+        }
         else 
+        {
+#ifdef UART_DETECT_CAR
           Serial.println("filtering /");
+#endif
+        }
         *pd = preDistance;
       }
   }
