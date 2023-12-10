@@ -2,6 +2,8 @@
 /*Alerts the driver when the vehicle in front has started to move*/
 /*2023년도 ICT이노베이션스퀘어 확산 사업 - 아두이노 기반 모빌리티 IoT 과정*/
 //  Changelog:
+//  23.12.10 - remove main loop delay (ULTRA_DELAY)
+//           - remove LCD Clear
 //  23.12.07 - add UART Define (Ultrasonic, Detect_car)
 //           - add Joystic Function
 //  23.12.06 - add LED Indication
@@ -54,7 +56,8 @@ typedef struct {
 CarState myCarState;
 CarState frontCarState;
 
-unsigned long curTime;
+unsigned long curTimeDetectCar;
+unsigned long curTimeUltrasonic;
 
 void setup() {
   // put your setup code here, to run once:
@@ -76,7 +79,8 @@ void setup() {
   memset(&myCarState, 0x00, sizeof(myCarState));
   memset(&frontCarState, 0x00, sizeof(frontCarState));
 
-  curTime = millis();
+  curTimeDetectCar = millis();
+  curTimeUltrasonic = millis();
   Serial.print("system init");
 }
 
@@ -95,17 +99,18 @@ void loop() {
   DetectCar(distance);
   
   Joystic();
-  
-  delay(ULTRA_DELAY);
 }
 
 void Joystic()
 {
   Serial.print("X : ");
   Serial.println(analogRead(JOY_X));
-   
+ 
   Serial.print("Y : ");
   Serial.println(analogRead(JOY_Y));
+
+  Serial.print("Button : ");
+  Serial.println(digitalRead(JOY_SW));
 }
 
 void Led(int color)
@@ -120,44 +125,55 @@ void Led(int color)
   }
 }
 
+
 void Lcd(float dist)
 {
-  lcd.clear();
   lcd.setCursor(0, 0);        // 커서를 0, 0에 위치 (열, 행)
   lcd.print("distance : ");   // 0, 0에 distance를 출력
-
-  lcd.setCursor(11, 0);       // 커서를 0, 0에 위치 (열, 행)
   
+  lcd.setCursor(11, 0);       // 커서를 0, 0에 위치 (열, 행)
+    
   if(dist > 0)
   {
       lcd.print(dist);
+      if (dist < 10)
+      { 
+        lcd.setCursor(15, 0);
+        lcd.print(" ");
+      }
   }
   else
   lcd.print("error");         //  out of lange
 }
 
+
 float UltraSonic()
 {
   static float ret = 0;
-  
-  digitalWrite(TRIG, LOW);
-  delayMicroseconds(2);
-  digitalWrite(TRIG, HIGH); 
-  delayMicroseconds(10);
-  digitalWrite(TRIG, LOW); // 10ms만큼 출력
 
-  unsigned long duration = pulseIn(ECHO, HIGH); // ECHO 핀이 HIGH 상태가 될 때까지 시간 측정
-
-  if((((float)(340*duration) / 10000) / 2 >= 2)&&(((float)(340*duration) / 10000) / 2 <= 400))
+  if(millis() > curTimeUltrasonic + ULTRA_DELAY)
   {
-    ret = ((float)(340*duration) / 10000) / 2;      // 초음파는 1초당 340m를 이동
-                                                    // 따라서, 초음파의 이동 거리 = duration(왕복에 걸린시간)*340 / 1000 / 2
-  }
+  
+    digitalWrite(TRIG, LOW);
+    delayMicroseconds(2);
+    digitalWrite(TRIG, HIGH); 
+    delayMicroseconds(10);
+    digitalWrite(TRIG, LOW); // 10ms만큼 출력
+  
+    unsigned long duration = pulseIn(ECHO, HIGH); // ECHO 핀이 HIGH 상태가 될 때까지 시간 측정
+  
+    if((((float)(340*duration) / 10000) / 2 >= 2)&&(((float)(340*duration) / 10000) / 2 <= 400))
+    {
+      ret = ((float)(340*duration) / 10000) / 2;      // 초음파는 1초당 340m를 이동
+                                                      // 따라서, 초음파의 이동 거리 = duration(왕복에 걸린시간)*340 / 1000 / 2
+    }
 #ifdef UART_ULTRA
-  Serial.print(ret);   // 측정된 거리 값를 시리얼 모니터에 출력
-  Serial.println("cm");
+    Serial.print(ret);   // 측정된 거리 값를 시리얼 모니터에 출력
+    Serial.println("cm");
 #endif
-  return ret;
+    curTimeUltrasonic = millis();
+    return ret;
+  }
 }
 
 void DetectCar(float distance)
@@ -176,7 +192,7 @@ void DetectCar(float distance)
     break;
     
     case DETECTED : 
-    if(millis() > curTime + 5000)
+    if(millis() > curTimeDetectCar + 5000)
     {
       if((distance <= 30)&&(distance > 0))
       {
@@ -185,7 +201,7 @@ void DetectCar(float distance)
         Serial.println("front car stopped");
 #endif
         frontCarState.lastDistance = distance;
-        curTime = millis();
+        curTimeDetectCar = millis();
         Led(RED);
       }
       else
@@ -200,7 +216,7 @@ void DetectCar(float distance)
     break;
   
     case STOP :
-    if(millis() > curTime + 3000)
+    if(millis() > curTimeDetectCar + 3000)
     {
       if((distance > 30)&&(distance > 0))
       {
@@ -209,7 +225,7 @@ void DetectCar(float distance)
         Serial.println("front car departed");
 #endif
         digitalWrite(BUZZER, HIGH);
-        curTime = millis();
+        curTimeDetectCar = millis();
         Led(BLUE);
       }
       else if((distance <= 30)&&(distance > 0))
