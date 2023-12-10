@@ -57,6 +57,20 @@ typedef struct {
 
 CarState frontCarState;
 
+typedef struct {
+  uint8_t cmd;
+  uint8_t data;
+  float distance;
+}LcdMsg;
+
+LcdMsg lcdMsg;
+
+enum lcdCmd {
+  DISTANCE = 0,
+  JOYSTICK
+};
+
+
 unsigned long curTimeDetectCar;
 unsigned long curTimeUltrasonic;
 unsigned long curTimeJoyStick;
@@ -96,7 +110,7 @@ void loop() {
   DistanceFilter(pDistance);
 #endif
 
-  Lcd(distance);
+  Lcd(DISTANCE);
   
   DetectCar(distance);
   
@@ -127,29 +141,33 @@ void Led(int color)
   }
 }
 
-void Lcd(float dist)
+void Lcd(uint8_t cmd)
 {
-  lcd.setCursor(0, 0);        // 커서를 0, 0에 위치 (열, 행)
-  lcd.print("distance : ");   // 0, 0에 distance를 출력
-  
-  lcd.setCursor(11, 0);       // 커서를 0, 0에 위치 (열, 행)
-
-  if(millis() > (LCD_DELAY))  // 초음파 센서 딜레이 1초 이전에 거리 값 ovf 출력 방지
+  switch (cmd)
   {
-    if(dist > 0)
+    case DISTANCE:
+    lcd.setCursor(0, 0);        // 커서를 0, 0에 위치 (열, 행)
+    lcd.print("distance : ");   // 0, 0에 distance를 출력
+    
+    lcd.setCursor(11, 0);       // 커서를 0, 0에 위치 (열, 행)
+  
+    if(millis() > (LCD_DELAY))  // 초음파 센서 딜레이 1초 이전에 거리 값 ovf 출력 방지
     {
-        lcd.print(dist);
-        if (dist < 10)
-        { 
-          lcd.setCursor(15, 0);
-          lcd.print(" ");
-        }
+      if(lcdMsg.distance > 0)
+      {
+          lcd.print(lcdMsg.distance);
+          if (lcdMsg.distance < 10)
+          { 
+            lcd.setCursor(15, 0);
+            lcd.print(" ");
+          }
+      }
+      else
+      lcd.print("error");       // out of lange
     }
     else
-    lcd.print("error");       // out of lange
+    lcd.print("init");          // 초기화 시간 2초 
   }
-  else
-  lcd.print("init");          // 초기화 시간 2초 
 }
 
 float UltraSonic()
@@ -177,6 +195,7 @@ float UltraSonic()
     Serial.println("cm");
 #endif
     curTimeUltrasonic = millis();
+    lcdMsg.distance = ret;
     return ret;
   }
 }
