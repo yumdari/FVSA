@@ -38,16 +38,10 @@
 
 //#define UART_ULTRA
 //#define UART_DETECT_CAR
+#define UART_JOYSTICK
 //#define FILTER
 
 LiquidCrystal_I2C lcd(0x27, 16, 2); // LCD 객체 선언
-
-enum carState {
-  INVALID = 0,
-  DETECTED,
-  STOP,
-  DEPART
-};
 
 typedef struct {
   uint8_t stopStart;
@@ -58,22 +52,43 @@ typedef struct {
 CarState frontCarState;
 
 typedef struct {
-  uint8_t cmd;
-  uint8_t data;
+  uint8_t joystick;
+  uint8_t preJoystick;
   float distance;
-}LcdMsg;
+  uint8_t lcdState;
+}LcdData;
 
-LcdMsg lcdMsg;
+LcdData lcdData;
+
+enum carState {
+  INVALID = 0,
+  DETECTED,
+  STOP,
+  DEPART
+};
 
 enum lcdCmd {
   DISTANCE = 0,
   JOYSTICK
 };
 
+enum lcdState {
+  DISPLAY_MODE = 0,
+  SETTING_MODE
+};
+
+enum joyStick {
+  NONE = 0,
+  RIGHT,
+  LEFT,
+  UP,
+  DOWN,
+  BUTTON
+};
 
 unsigned long curTimeDetectCar;
 unsigned long curTimeUltrasonic;
-unsigned long curTimeJoyStick;
+unsigned long curTimeJoystick;
 
 void setup() {
   // put your setup code here, to run once:
@@ -93,10 +108,11 @@ void setup() {
   pinMode(JOY_SW, INPUT_PULLUP);  // 조이스틱 버튼에 내부 pull up 적용
 
   memset(&frontCarState, 0x00, sizeof(frontCarState));
+  memset(&lcdData, 0x00, sizeof(lcdData));
 
   curTimeDetectCar = millis();
   curTimeUltrasonic = millis();
-  curTimeJoyStick = millis();
+  curTimeJoystick = millis();
   Serial.print("system init");
 }
 
@@ -119,14 +135,40 @@ void loop() {
 
 void Joystick()
 {
-  Serial.print("X : ");
-  Serial.println(analogRead(JOY_X));
- 
-  Serial.print("Y : ");
-  Serial.println(analogRead(JOY_Y));
+/*X neutral : 500*/
+/*Y neutral : 500*/
+    if(analogRead(JOY_X) < 400) // 왼쪽
+    lcdData.joystick = LEFT;
+    
+    else if(analogRead(JOY_X) > 600)  // 오른쪽
+    lcdData.joystick = RIGHT;
+    
+    else if(analogRead(JOY_Y) < 400) // 위
+    lcdData.joystick = UP;
+    
+    else if(analogRead(JOY_Y) > 600)  // 아래
+    lcdData.joystick = DOWN;
+    
+    else if(digitalRead(JOY_SW) == 0)
+    lcdData.joystick = BUTTON;
+    
+    else
+    lcdData.joystick = NONE;
 
-  Serial.print("Button : ");
-  Serial.println(digitalRead(JOY_SW));
+#ifdef UART_JOYSTICK
+    Serial.print("X : ");
+    Serial.println(analogRead(JOY_X));
+   
+    Serial.print("Y : ");
+    Serial.println(analogRead(JOY_Y));
+  
+    Serial.print("Button : ");
+    Serial.println(digitalRead(JOY_SW));
+#endif
+    if(lcdData.preJoystick != lcdData.joystick)
+    {
+     // Lcd(JOYSTICK);
+    }
 }
 
 void Led(int color)
@@ -145,28 +187,52 @@ void Lcd(uint8_t cmd)
 {
   switch (cmd)
   {
-    case DISTANCE:
-    lcd.setCursor(0, 0);        // 커서를 0, 0에 위치 (열, 행)
-    lcd.print("distance : ");   // 0, 0에 distance를 출력
-    
-    lcd.setCursor(11, 0);       // 커서를 0, 0에 위치 (열, 행)
-  
-    if(millis() > (LCD_DELAY))  // 초음파 센서 딜레이 1초 이전에 거리 값 ovf 출력 방지
+    case JOYSTICK:
+    switch(lcdData.joystick)
     {
-      if(lcdMsg.distance > 0)
+      case BUTTON:
+      Serial.println("LCD_BUTTON");
+      if(lcdData.lcdState == DISPLAY_MODE)
       {
-          lcd.print(lcdMsg.distance);
-          if (lcdMsg.distance < 10)
-          { 
-            lcd.setCursor(15, 0);
-            lcd.print(" ");
-          }
+        lcdData.lcdState = SETTING_MODE;
+        Serial.println("LCD_SETTING_MODE");
+        lcd.clear();
+        break;
+      }
+      else if(lcdData.lcdState == SETTING_MODE)
+      {
+        lcdData.lcdState = DISPLAY_MODE;
+        Serial.println("LCD_DISPLAY_MODE");
+        lcd.clear();
+      }
+    }
+    
+    case DISTANCE:
+    if(lcdData.lcdState == DISPLAY_MODE)
+    {
+      lcd.setCursor(0, 0);        // 커서를 0, 0에 위치 (열, 행)
+      lcd.print("distance : ");   // 0, 0에 distance를 출력
+      
+      lcd.setCursor(11, 0);       // 커서를 0, 0에 위치 (열, 행)
+    
+      if(millis() > (LCD_DELAY))  // 초음파 센서 딜레이 1초 이전에 거리 값 ovf 출력 방지
+      {
+        if(lcdData.distance > 0)
+        {
+            lcd.print(lcdData.distance);
+            if (lcdData.distance < 10)
+            { 
+              lcd.setCursor(15, 0);
+              lcd.print(" ");
+            }
+        }
+        else
+        lcd.print("error");       // out of lange
       }
       else
-      lcd.print("error");       // out of lange
+      lcd.print("init");          // 초기화 시간 2초 
     }
-    else
-    lcd.print("init");          // 초기화 시간 2초 
+    break;
   }
 }
 
@@ -195,7 +261,7 @@ float UltraSonic()
     Serial.println("cm");
 #endif
     curTimeUltrasonic = millis();
-    lcdMsg.distance = ret;
+    lcdData.distance = ret;
     return ret;
   }
 }
